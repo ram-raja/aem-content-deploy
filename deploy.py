@@ -17,11 +17,17 @@ def get_package_name():
     TWEED = 'redwood'
     SPECTRUM = 'solace'
     BRANDS = 'brands'
+
     print("1) Tweed")
     print("2) Spectrum")
     print("3) Brands\n")
-    package = int(input("Enter content package to deploy >> "))
-    print(package)
+
+    while True:
+        try:
+            package = int(input("Enter content package to deploy >> "))
+            break
+        except ValueError:
+            print("Please enter a valid number")
 
     if package == 1:
         return TWEED
@@ -54,6 +60,47 @@ def update_version(username, password, host, content_package, version, headers):
         print("Version bumped")
 
 
+def rename_package(username, password, host, content_package, version, headers):
+    url = "http://{0}/etc/packages/com.canopygrowth.{1}/{1}-content-{2}.zip".format(host, content_package, version+1)
+    print(url)
+    payload = {
+        ':operation': 'move',
+        ':dest': '/etc/packages/com.canopygrowth.{0}/{0}-content.zip'.format(content_package)
+    }
+    r = requests.post(url=url, auth=HTTPBasicAuth(username, password), params=payload, verify=False)
+    if r.status_code == 201:
+        print("Package Moved")
+
+
+def build_package(username, password, host, content_package, headers):
+    url = "http://{0}/crx/packmgr/service/.json/etc/packages/com.canopygrowth.{1}/{1}-content.zip?cmd=build".format(host, content_package)
+    r = requests.post(url=url, auth=HTTPBasicAuth(username, password), verify=False)
+    if r.status_code == 200:
+        print("Package built")
+
+
+def download_package(username, password, host, content_package, headers):
+    url = "http://{0}/etc/packages/com.canopygrowth.{1}/{1}-content.zip".format(host, content_package)
+    r = requests.get(url=url, auth=HTTPBasicAuth(username, password), verify=False)
+    if r.status_code == 200:
+        with open('./pkg/content.zip', 'wb') as f:
+            f.write(r.content)
+        print("Package downloaded")
+
+
+def install_package(username, password, host, headers):
+    url = "http://{0}/crx/packmgr/service.jsp".format(host)
+    files = {'file': ('content.zip', open('./pkg/content.zip', 'rb'), 'application/zip')}
+    print(files)
+    payload = {
+        'force': 'true',
+        'install': 'true'
+    }
+    r = requests.post(url, auth=HTTPBasicAuth(username, password), params=payload, files=files, verify=False)
+    print(r.request.body)
+    print(r.status_code)
+
+
 def main():
     data = read_config()
     username = data['username']
@@ -61,11 +108,14 @@ def main():
     staging = data['staging']
     prod = data['prod']
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
+
     content_package = get_package_name()
-    content_package = 'brands'
     version = get_version(username, password, staging, content_package, headers)
     update_version(username, password, staging, content_package, version, headers)
-    print(version)
+    rename_package(username, password, staging, content_package, version, headers)
+    build_package(username, password, staging, content_package, headers)
+    download_package(username, password, staging, content_package, headers)
+    install_package(username, password, prod, headers)
 
 
 if __name__ == '__main__':
