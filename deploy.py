@@ -1,6 +1,8 @@
 import json
 import requests
 from requests.auth import HTTPBasicAuth
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def read_config():
@@ -40,15 +42,17 @@ def get_package_name():
 
 
 def get_version(username, password, host, content_package, headers):
-    url = "http://{0}/etc/packages/com.canopygrowth.{1}/{1}-content.zip/jcr%3acontent/vlt%3adefinition.json".format(host, content_package)
+    url = "https://{0}/etc/packages/com.canopygrowth.{1}/{1}-content.zip/jcr%3acontent/vlt%3adefinition.json".format(host, content_package)
     r = requests.get(url, auth=HTTPBasicAuth(username, password), verify=False)
-    resp_json = json.loads(r.text)
-    version = int(resp_json['version'])
+    version = None
+    if r.status_code == 200:
+        resp_json = json.loads(r.text)
+        version = int(resp_json['version'])
     return version
 
 
 def update_version(username, password, host, content_package, version, headers):
-    url = "http://{}/crx/packmgr/update.jsp".format(host)
+    url = "https://{}/crx/packmgr/update.jsp".format(host)
     payload = {
         'packageName': '{}-content'.format(content_package),
         'groupName': 'com.canopygrowth.{}'.format(content_package),
@@ -61,7 +65,7 @@ def update_version(username, password, host, content_package, version, headers):
 
 
 def rename_package(username, password, host, content_package, version, headers):
-    url = "http://{0}/etc/packages/com.canopygrowth.{1}/{1}-content-{2}.zip".format(host, content_package, version+1)
+    url = "https://{0}/etc/packages/com.canopygrowth.{1}/{1}-content-{2}.zip".format(host, content_package, version+1)
     print(url)
     payload = {
         ':operation': 'move',
@@ -73,14 +77,14 @@ def rename_package(username, password, host, content_package, version, headers):
 
 
 def build_package(username, password, host, content_package, headers):
-    url = "http://{0}/crx/packmgr/service/.json/etc/packages/com.canopygrowth.{1}/{1}-content.zip?cmd=build".format(host, content_package)
+    url = "https://{0}/crx/packmgr/service/.json/etc/packages/com.canopygrowth.{1}/{1}-content.zip?cmd=build".format(host, content_package)
     r = requests.post(url=url, auth=HTTPBasicAuth(username, password), verify=False)
     if r.status_code == 200:
         print("Package built")
 
 
 def download_package(username, password, host, content_package, headers):
-    url = "http://{0}/etc/packages/com.canopygrowth.{1}/{1}-content.zip".format(host, content_package)
+    url = "https://{0}/etc/packages/com.canopygrowth.{1}/{1}-content.zip".format(host, content_package)
     r = requests.get(url=url, auth=HTTPBasicAuth(username, password), verify=False)
     if r.status_code == 200:
         with open('./pkg/content.zip', 'wb') as f:
@@ -89,16 +93,17 @@ def download_package(username, password, host, content_package, headers):
 
 
 def install_package(username, password, host, headers):
-    url = "http://{0}/crx/packmgr/service.jsp".format(host)
+    url = "https://{0}/crx/packmgr/service.jsp".format(host)
     files = {'file': ('content.zip', open('./pkg/content.zip', 'rb'), 'application/zip')}
-    print(files)
+
     payload = {
         'force': 'true',
         'install': 'true'
     }
     r = requests.post(url, auth=HTTPBasicAuth(username, password), params=payload, files=files, verify=False)
-    print(r.request.body)
-    print(r.status_code)
+    print(r.text)
+    if r.status_code == 200:
+        print("Package uploaded & installed to production")
 
 
 def main():
@@ -111,6 +116,7 @@ def main():
 
     content_package = get_package_name()
     version = get_version(username, password, staging, content_package, headers)
+    print("Updating {0} version {1}".format(content_package, version))
     update_version(username, password, staging, content_package, version, headers)
     rename_package(username, password, staging, content_package, version, headers)
     build_package(username, password, staging, content_package, headers)
