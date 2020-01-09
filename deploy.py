@@ -22,7 +22,8 @@ def get_package_name():
 
     print("1) Tweed")
     print("2) Spectrum")
-    print("3) Brands\n")
+    print("3) Brands")
+    print("4) Exit")
 
     while True:
         try:
@@ -37,6 +38,8 @@ def get_package_name():
         return SPECTRUM
     elif package == 3:
         return BRANDS
+    elif package == 4:
+        return "EXIT"
     else:
         print("WRONG INPUT")
 
@@ -100,8 +103,11 @@ def install_package(username, password, host, headers):
         'force': 'true',
         'install': 'true'
     }
+
+    print("Installing package to production....")
     r = requests.post(url, auth=HTTPBasicAuth(username, password), params=payload, files=files, verify=False)
     print(r.text)
+
     if r.status_code == 200:
         print("Package uploaded & installed to production")
 
@@ -115,13 +121,15 @@ def main():
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
 
     content_package = get_package_name()
-    version = get_version(username, password, staging, content_package, headers)
-    print("Updating {0} version {1}".format(content_package, version))
-    update_version(username, password, staging, content_package, version, headers)
-    rename_package(username, password, staging, content_package, version, headers)
-    build_package(username, password, staging, content_package, headers)
-    download_package(username, password, staging, content_package, headers)
-    install_package(username, password, prod, headers)
+    while content_package != 'EXIT':
+        version = get_version(username, password, staging, content_package, headers)
+        print("Updating {0} version {1}".format(content_package, version))
+        update_version(username, password, staging, content_package, version, headers)
+        rename_package(username, password, staging, content_package, version, headers)
+        build_package(username, password, staging, content_package, headers)
+        download_package(username, password, staging, content_package, headers)
+        install_package(username, password, prod, headers)
+        content_package = get_package_name()
 
 
 if __name__ == '__main__':
